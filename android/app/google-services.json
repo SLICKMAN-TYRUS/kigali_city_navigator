@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "589102136702",
+    "project_id": "kigali-city-navigator",
+    "storage_bucket": "kigali-city-navigator.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:589102136702:android:a7ea73dfb05916ab12072f",
+        "android_client_info": {
+          "package_name": "com.slickman_tyrus.kigali"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCZEfxw8-WQzqzXskWRYct3bEUWQmZkUZg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

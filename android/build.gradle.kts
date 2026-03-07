@@ -1,27 +1,21 @@
-pluginManagement {
-    val flutterSdkPath = run {
-        val properties = java.util.Properties()
-        file("local.properties").inputStream().use { properties.load(it) }
-        val flutterSdkPath = properties.getProperty("flutter.sdk")
-        require(flutterSdkPath != null) { "flutter.sdk not set in local.properties" }
-        flutterSdkPath
-    }
+import org.gradle.api.file.Directory
+import org.gradle.api.tasks.Delete
 
-    includeBuild("$flutterSdkPath/packages/flutter_tools/gradle")
-
+allprojects {
     repositories {
         google()
         mavenCentral()
-        gradlePluginPortal()
     }
 }
 
-plugins {
-    id("dev.flutter.flutter-plugin-loader") version "1.0.0"
-    id("com.android.application") version "8.2.1" apply false
-    id("org.jetbrains.kotlin.android") version "1.9.22" apply false
-    // Firebase plugin - using version from your screenshot
-    id("com.google.gms.google-services") version "4.4.4" apply false
+val newBuildDir: Directory = rootProject.layout.buildDirectory.dir("../../build").get()
+rootProject.layout.buildDirectory.value(newBuildDir)
+
+subprojects {
+    project.layout.buildDirectory.value(newBuildDir.dir(project.name))
+    project.evaluationDependsOn(":app")
 }
 
-include(":app")
+tasks.register<Delete>("clean") {
+    delete(rootProject.layout.buildDirectory)
+}

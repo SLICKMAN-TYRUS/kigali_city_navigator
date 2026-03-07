@@ -22,7 +22,7 @@ android {
 
     defaultConfig {
         applicationId = "com.slickman_tyrus.kigali"
-        minSdk = 21
+        minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName

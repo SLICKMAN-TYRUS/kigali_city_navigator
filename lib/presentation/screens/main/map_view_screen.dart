@@ -67,7 +67,7 @@ class _MapViewScreenState extends State<MapViewScreen> {
             icon: const Icon(Icons.my_location),
             onPressed: () {
               _mapController?.animateCamera(
-                const CameraUpdate.newLatLngZoom(_kigaliCenter, _defaultZoom),
+                CameraUpdate.newLatLngZoom(_kigaliCenter, _defaultZoom),
               );
             },
           ),
