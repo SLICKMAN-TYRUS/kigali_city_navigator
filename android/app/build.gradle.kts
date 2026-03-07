@@ -2,7 +2,6 @@ plugins {
     id("com.android.application")
     id("kotlin-android")
     id("dev.flutter.flutter-gradle-plugin")
-    // Firebase plugin
     id("com.google.gms.google-services")
 }
 
@@ -17,7 +16,7 @@ android {
     }
 
     kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_17.toString()
+        jvmTarget = "17"  // FIXED: Just use string "17"
     }
 
     defaultConfig {
@@ -39,17 +38,9 @@ flutter {
     source = "../.."
 }
 
-// Firebase dependencies - using versions from your screenshot
 dependencies {
-    // Import the Firebase BoM
     implementation(platform("com.google.firebase:firebase-bom:34.10.0"))
-    
-    // Firebase Analytics
     implementation("com.google.firebase:firebase-analytics")
-    
-    // Firebase Auth
     implementation("com.google.firebase:firebase-auth")
-    
-    // Firestore
     implementation("com.google.firebase:firebase-firestore")
 }
