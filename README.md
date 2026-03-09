@@ -2,16 +2,118 @@
 
 A Flutter mobile application that helps Kigali residents and visitors locate and navigate to essential public services and lifestyle destinations including hospitals, police stations, libraries, utility offices, restaurants, cafés, parks, and tourist attractions.
 
+Built with **Firebase** for authentication and real-time data storage, **Google Maps** for embedded map views and turn-by-turn navigation, and **Provider** for clean, scalable state management.
+
+## Screenshots
+
+| Login | Directory | Map View | Detail |
+|---|---|---|---|
+| Email/password + social login | Search & category filter | All markers on map | Embedded map + directions |
+
 ## Features
 
-- **User Authentication** — Email/password signup and login with enforced email verification. Google and Facebook social login supported.
-- **Listings CRUD** — Create, read, update, and delete service/place listings stored in Cloud Firestore with real-time updates.
-- **Search & Filter** — Search listings by name and filter by category (Hospital, Police Station, Library, Utility Office, Restaurant, Café, Park, Tourist Attraction).
-- **Map Integration** — Embedded Google Maps on listing detail pages showing marker at the listing's coordinates. Full Map View tab displaying all listings as markers.
-- **Turn-by-Turn Navigation** — Launch Google Maps directions to any listing from the detail page.
-- **Settings** — View user profile, toggle location-based notifications (persisted to Firestore), and sign out.
+### Authentication
+- **Email/Password** signup and login with form validation (name, email, password confirmation)
+- **Enforced email verification** — users cannot access the app until they verify their email. A polling timer checks verification status every 3 seconds, with a manual "I've Verified" button as fallback
+- **Google Sign-In** and **Facebook Login** via OAuth, with automatic Firestore profile creation for new social users
+- **Secure logout** with confirmation dialog
 
-## Firestore Database Structure
+### Location Listings (CRUD)
+- **Create** new listings with validated form fields: name, category dropdown (8 options), address, phone number, description (10–500 chars), latitude (-90 to 90), and longitude (-180 to 180)
+- **Read** all listings in real-time using Firestore `snapshots()` streams — new listings appear instantly without refreshing
+- **Update** existing listings with a pre-filled edit form (only available to the listing creator)
+- **Delete** listings with a confirmation dialog (only available to the listing creator)
+- All mutations flow through: `UI → Provider → Service → Firestore`
+
+### Search & Category Filtering
+- **Name search** — real-time filtering as the user types, case-insensitive
+- **Category chips** — 8 horizontal filter chips (Hospital, Police Station, Library, Utility Office, Restaurant, Café, Park, Tourist Attraction)
+- **Stacked filters** — search and category filter combine: e.g. search "Kigali" within category "Restaurant"
+- Computed client-side in `ListingProvider` for instant response (no network round-trip per keystroke)
+
+### Map Integration & Navigation
+- **Map View tab** — full-screen Google Map centered on Kigali (-1.9403, 29.8739) with markers for every listing. Tap a marker's info window to navigate to its detail page
+- **Embedded detail map** — 250px map on each listing's detail page, centered on the listing's coordinates with a single marker
+- **Turn-by-turn directions** — "Get Directions" button launches Google Maps with the listing's lat/lng as the destination
+- **Phone dialer** — "Call" button launches the phone app with the listing's contact number
+
+### Settings & Profile
+- **User profile card** — displays full name, email, and avatar (first letter of name)
+- **Notification toggle** — `SwitchListTile` that persists the preference to the Firestore `users` document
+- **Sign out** — with confirmation dialog; auth state change routes back to login automatically
+
+## Architecture
+
+The app follows a **clean three-layer architecture** with strict dependency rules:
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  PRESENTATION LAYER                                     │
+│  Screens: login, signup, verify_email, home, directory, │
+│           my_listings, map_view, settings, detail,      │
+│           add_edit_listing                               │
+│  Widgets: listing_card                                  │
+│  Rule: NEVER imports Firebase SDKs directly              │
+├─────────────────────────────────────────────────────────┤
+│  DOMAIN LAYER                                           │
+│  AuthProvider (ChangeNotifier)                          │
+│    → auth state, email verification, notifications      │
+│  ListingProvider (ChangeNotifier)                       │
+│    → CRUD, search/filter state, loading/error states    │
+│  Rule: Depends on abstract Repository interfaces only   │
+├─────────────────────────────────────────────────────────┤
+│  DATA LAYER                                             │
+│  AuthRepository (abstract) ← FirebaseAuthService        │
+│  ListingRepository (abstract) ← FirestoreListingService │
+│  ListingModel (Firestore serialization + copyWith)      │
+│  Rule: Only layer that imports Firebase packages        │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Key design decisions:**
+- **Dependency injection:** Providers receive their service implementation via constructor (`AuthProvider(FirebaseAuthService())`). This enables swapping to mock services for testing without changing provider or UI code.
+- **Abstract repository interfaces:** `AuthRepository` and `ListingRepository` define the contract. Concrete Firebase implementations are isolated in the service layer, so a backend migration would only touch service files.
+- **ChangeNotifier + Provider:** Lightweight and Flutter-native. Two global providers (Auth + Listing) cover all state needs without the overhead of BLoC's event/state boilerplate or Riverpod's code generation.
+
+## State Management — Provider
+
+```dart
+// main.dart — Provider tree setup
+MultiProvider(
+  providers: [
+    ChangeNotifierProvider(create: (_) => AuthProvider(FirebaseAuthService())),
+    ChangeNotifierProvider(create: (_) => ListingProvider(FirestoreListingService())),
+  ],
+  child: MaterialApp(home: AuthWrapper()),
+)
+```
+
+### AuthProvider
+Manages: user session, email verification polling (3-sec timer), social login, user profile, notification preferences.
+
+| Getter | Type | Purpose |
+|---|---|---|
+| `user` | `User?` | Firebase Auth user object |
+| `isLoading` | `bool` | Shows loading spinners during async ops |
+| `error` | `String?` | Displays error messages in UI |
+| `isAuthenticated` | `bool` | `true` only when user != null AND email verified |
+| `isEmailVerified` | `bool` | Checks Firebase emailVerified flag |
+| `userName` | `String` | From Firestore profile |
+| `notificationsEnabled` | `bool` | From Firestore profile |
+
+### ListingProvider
+Manages: CRUD operations, real-time Firestore streams, search query, category filter, loading/error states.
+
+| Getter | Type | Purpose |
+|---|---|---|
+| `listings` | `List<ListingModel>` | Filtered by search + category |
+| `allListingsStream` | `Stream` | Real-time all listings |
+| `isLoading` | `bool` | Loading state for mutations |
+| `error` | `String?` | Error state for mutations |
+| `searchQuery` | `String` | Current search text |
+| `selectedCategory` | `String?` | Current category filter |
+
+## Firestore Database Design
 
 ### `users` collection
 Each document is keyed by the Firebase Auth UID.
@@ -39,91 +141,147 @@ Each document has an auto-generated ID.
 | `createdBy` | string | Firebase Auth UID of the creator |
 | `timestamp` | timestamp | Creation time |
 
-### Firestore Indexes
-- **Composite index** on `listings`: `createdBy` (Ascending) + `timestamp` (Descending) — required for the "My Listings" query.
+### Firestore Composite Index
+- **Collection:** `listings`
+- **Fields:** `createdBy` (Ascending) + `timestamp` (Descending)
+- **Purpose:** Required for the "My Listings" query that filters by `createdBy` and sorts by `timestamp` descending
 
 ### Firestore Security Rules
-- `users/{userId}`: Read/write only by the authenticated owner.
-- `listings/{listingId}`: Read by anyone. Create by any authenticated user. Update/delete only by the creator (`createdBy == auth.uid`).
+```
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    match /listings/{listingId} {
+      allow read: if true;
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null
+                            && resource.data.createdBy == request.auth.uid;
+    }
+  }
+}
+```
 
-## State Management — Provider
-
-The app uses the **Provider** package for state management with a clean three-layer architecture:
+## Navigation Structure
 
 ```
-UI (Screens/Widgets)
-  ↓ reads state / calls methods
-Provider (AuthProvider, ListingProvider)
-  ↓ delegates to repository interface
-Service Layer (FirebaseAuthService, FirestoreListingService)
-  ↓ executes
-Firebase (Auth, Firestore)
+AuthWrapper (listens to AuthProvider)
+  ├── Not logged in ───────→ LoginScreen ←→ SignupScreen
+  ├── Logged in, unverified → VerifyEmailScreen
+  └── Fully authenticated ─→ HomeScreen (IndexedStack)
+                                ├── Tab 0: DirectoryScreen
+                                ├── Tab 1: MyListingsScreen
+                                ├── Tab 2: MapViewScreen
+                                └── Tab 3: SettingsScreen
+                                
+Push routes:
+  DirectoryScreen → ListingDetailScreen
+  MyListingsScreen → AddEditListingScreen (edit)
+  MapViewScreen (marker tap) → ListingDetailScreen
+  FAB (+) → AddEditListingScreen (create)
+  ListingDetailScreen → Google Maps (external, directions)
+  ListingDetailScreen → Phone dialer (external, call)
 ```
 
-- **AuthProvider** — Manages authentication state, email verification polling, user profile, and notification preferences. Exposes `isLoading`, `error`, `isAuthenticated`, `isEmailVerified`, and `userName` to the UI.
-- **ListingProvider** — Manages listing CRUD operations, search query, and category filter. Exposes real-time Firestore streams and computed filtered results. Handles loading and error states for every operation.
-
-UI widgets never call Firebase APIs directly. All database interactions pass through the provider layer into the service layer.
+`IndexedStack` keeps all 4 tabs alive simultaneously, preserving scroll positions, search state, and map camera position when switching between tabs.
 
 ## Project Structure
 
 ```
 lib/
-├── main.dart                          # App entry point, Firebase init, Provider tree
-├── firebase_options.dart              # FlutterFire CLI generated config
+├── main.dart                          # App entry, Firebase init, MultiProvider, AuthWrapper
+├── firebase_options.dart              # FlutterFire config (git-ignored)
 ├── core/
-│   ├── theme/app_theme.dart           # Montserrat theme, brand colors
-│   └── utils/constants.dart           # Categories, validation rules, messages
+│   ├── theme/app_theme.dart           # Montserrat font, blue/green palette, Material 3
+│   └── utils/constants.dart           # 8 categories, validation rules, error messages
 ├── data/
-│   ├── models/listing_model.dart      # Listing data model with Firestore serialization
+│   ├── models/listing_model.dart      # fromFirestore(), toFirestore(), copyWith()
 │   ├── repositories/
-│   │   ├── auth_repository.dart       # Abstract auth interface
-│   │   └── listing_repository.dart    # Abstract listing CRUD interface
+│   │   ├── auth_repository.dart       # Abstract: signUp, signIn, social, verify, profile
+│   │   └── listing_repository.dart    # Abstract: CRUD streams + search
 │   └── services/
-│       ├── firebase_auth_service.dart     # Firebase Auth + social login implementation
-│       └── firestore_listing_service.dart # Firestore CRUD implementation
+│       ├── firebase_auth_service.dart     # Implements AuthRepository with Firebase
+│       └── firestore_listing_service.dart # Implements ListingRepository with Firestore
 ├── domain/
 │   └── providers/
-│       ├── auth_provider.dart         # Auth state management
-│       └── listing_provider.dart      # Listing state management
+│       ├── auth_provider.dart         # ChangeNotifier: auth state, verification timer
+│       └── listing_provider.dart      # ChangeNotifier: CRUD, search, filter, streams
 └── presentation/
     ├── screens/
     │   ├── auth/
-    │   │   ├── login_screen.dart      # Email/password + social login
-    │   │   ├── signup_screen.dart     # Registration with validation
-    │   │   └── verify_email_screen.dart # Email verification with polling
+    │   │   ├── login_screen.dart      # Email/password + Google + Facebook buttons
+    │   │   ├── signup_screen.dart     # Registration with 4-field validation
+    │   │   └── verify_email_screen.dart # Timer polling + resend cooldown
     │   ├── main/
-    │   │   ├── home_screen.dart       # BottomNavigationBar with 4 tabs
-    │   │   ├── directory_screen.dart  # Browse listings with search & filter
-    │   │   ├── my_listings_screen.dart # User's own listings with edit/delete
-    │   │   ├── map_view_screen.dart   # Google Map with all listing markers
-    │   │   └── settings_screen.dart   # Profile, notifications, logout
+    │   │   ├── home_screen.dart       # BottomNavigationBar + IndexedStack (4 tabs)
+    │   │   ├── directory_screen.dart  # StreamBuilder + search bar + category chips
+    │   │   ├── my_listings_screen.dart # User's listings with edit/delete controls
+    │   │   ├── map_view_screen.dart   # GoogleMap + markers from Firestore stream
+    │   │   └── settings_screen.dart   # Profile card + notification SwitchListTile
     │   └── detail/
-    │       ├── listing_detail_screen.dart  # Full listing info with embedded map
-    │       └── add_edit_listing_screen.dart # Create/edit listing form
+    │       ├── listing_detail_screen.dart  # Embedded map + directions + call buttons
+    │       └── add_edit_listing_screen.dart # Validated form, create vs edit mode
     └── widgets/
-        └── listing_card.dart          # Reusable listing card with category icons
+        └── listing_card.dart          # Reusable card with category-specific FontAwesome icons
 ```
 
-## Firebase Setup
+## Getting Started
 
-1. Create a Firebase project and enable **Authentication** (Email/Password, Google, Facebook).
-2. Create a **Cloud Firestore** database.
-3. Add the `google-services.json` to `android/app/`.
-4. Add the Google Maps API key to `android/local.properties`:
+### Prerequisites
+- Flutter SDK ≥ 3.0.0
+- A Firebase project with Authentication and Cloud Firestore enabled
+- A Google Maps API key (Android)
+
+### Setup
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/SLICKMAN-TYRUS/kigali_city_navigator.git
+   cd kigali_city_navigator
+   ```
+2. Add your Firebase config:
+   - Place `google-services.json` in `android/app/`
+   - Place `GoogleService-Info.plist` in `ios/Runner/` (if targeting iOS)
+   - Add `firebase_options.dart` to `lib/` (generated by FlutterFire CLI)
+3. Add your Google Maps API key to `android/local.properties`:
    ```
    MAPS_API_KEY=your_api_key_here
    ```
-5. Run `flutter pub get` to install dependencies.
-6. Run `flutter run` to launch the app.
+4. Install dependencies:
+   ```bash
+   flutter pub get
+   ```
+5. Run the app:
+   ```bash
+   flutter run
+   ```
+
+### Firestore Setup
+1. Create a Cloud Firestore database (any region)
+2. Publish the security rules from the "Firestore Security Rules" section above
+3. Create the composite index: `listings` → `createdBy` (Asc) + `timestamp` (Desc)
 
 ## Dependencies
 
-- `firebase_core`, `firebase_auth`, `cloud_firestore` — Firebase backend
-- `google_maps_flutter` — Embedded maps
-- `url_launcher` — Launch directions and phone calls
-- `provider` — State management
-- `google_sign_in`, `flutter_facebook_auth` — Social authentication
-- `google_fonts` — Montserrat typography
-- `font_awesome_flutter` — Category icons
-- `intl` — Date formatting
+| Package | Version | Purpose |
+|---|---|---|
+| `firebase_core` | ^2.24.2 | Firebase initialization |
+| `firebase_auth` | ^4.16.0 | Email/password, Google, Facebook authentication |
+| `cloud_firestore` | ^4.14.0 | Real-time NoSQL database |
+| `google_maps_flutter` | ^2.5.0 | Embedded maps and markers |
+| `url_launcher` | ^6.2.2 | Launch directions and phone dialer |
+| `provider` | ^6.1.1 | State management (ChangeNotifier) |
+| `google_sign_in` | ^6.2.2 | Google OAuth |
+| `flutter_facebook_auth` | ^6.0.4 | Facebook OAuth |
+| `google_fonts` | ^6.1.0 | Montserrat typography |
+| `font_awesome_flutter` | ^10.6.0 | Category icons |
+| `intl` | ^0.19.0 | Date formatting |
+
+## Security
+
+- **API keys** are stored in `local.properties` (git-ignored) and injected via Gradle `manifestPlaceholders` at build time — never hardcoded in source
+- **Firebase config files** (`google-services.json`, `firebase_options.dart`) are git-ignored
+- **Google Maps API key** is restricted to the app's Android package name and SHA-1 certificate fingerprint
+- **Firestore rules** enforce owner-only write access on user profiles and listing mutations
+- **Email verification** is enforced at both the service layer (blocks sign-in) and provider layer (blocks navigation)

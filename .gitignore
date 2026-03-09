@@ -32,3 +32,7 @@ doc/api/
 android/app/google-services.json
 ios/Runner/GoogleService-Info.plist
 lib/firebase_options.dart
+
+# Assignment deliverables (personal documents)
+REFLECTION_AND_DESIGN_SUMMARY.md
+DEMO_VIDEO_SCRIPT.md
