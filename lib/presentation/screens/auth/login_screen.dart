@@ -177,6 +177,71 @@ class _LoginScreenState extends State<LoginScreen> {
                     },
                     child: const Text("Don't have an account? Sign up"),
                   ),
+
+                  const SizedBox(height: 24),
+
+                  // Divider
+                  const Row(
+                    children: [
+                      Expanded(child: Divider()),
+                      Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 16),
+                        child: Text("OR"),
+                      ),
+                      Expanded(child: Divider()),
+                    ],
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // Google Login Button
+                  ElevatedButton.icon(
+                    onPressed: () async {
+                      final provider =
+                          Provider.of<AuthProvider>(context, listen: false);
+                      final success = await provider.signInWithGoogle();
+
+                      if (!success && mounted && provider.error != null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(provider.error!)),
+                        );
+                      }
+                      // If success, AuthWrapper handles navigation
+                    },
+                    icon: const Icon(Icons.g_mobiledata,
+                        color: Colors.black, size: 32),
+                    label: const Text('Continue with Google'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: Colors.black,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // Facebook Login Button
+                  ElevatedButton.icon(
+                    onPressed: () async {
+                      final provider =
+                          Provider.of<AuthProvider>(context, listen: false);
+                      final success = await provider.signInWithFacebook();
+
+                      if (!success && mounted && provider.error != null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(provider.error!)),
+                        );
+                      }
+                      // If success, AuthWrapper handles navigation
+                    },
+                    icon: const Icon(Icons.facebook, color: Colors.white),
+                    label: const Text('Continue with Facebook'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1877F2), // Facebook Blue
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
                 ],
               ),
             ),

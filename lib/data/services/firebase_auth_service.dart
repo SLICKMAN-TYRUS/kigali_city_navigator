@@ -4,6 +4,8 @@
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import '../repositories/auth_repository.dart';
 
 class FirebaseAuthService implements AuthRepository {
@@ -18,6 +20,93 @@ class FirebaseAuthService implements AuthRepository {
 
   @override
   User? get currentUser => _auth.currentUser;
+
+  // Sign in with Google
+  Future<UserCredential?> signInWithGoogle() async {
+    try {
+      // Trigger the authentication flow
+      final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
+
+      if (googleUser == null) {
+        return null; // The user canceled the sign-in
+      }
+
+      // Obtain the auth details from the request
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
+
+      // Create a new credential
+      final OAuthCredential credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      // Sign in to Firebase with the Google credential
+      final UserCredential userCredential =
+          await _auth.signInWithCredential(credential);
+
+      // Check if new user -> create profile
+      if (userCredential.additionalUserInfo?.isNewUser ?? false) {
+        await _firestore.collection('users').doc(userCredential.user!.uid).set({
+          'fullName': userCredential.user!.displayName ?? 'Google User',
+          'email': userCredential.user!.email ?? '',
+          'createdAt': FieldValue.serverTimestamp(),
+          'notificationsEnabled': true,
+          'photoUrl': userCredential.user!.photoURL,
+        });
+      }
+
+      return userCredential;
+    } catch (e) {
+      // Handle sign-in error specifically or rethrow
+      if (e is FirebaseAuthException) {
+        throw _handleAuthError(e);
+      } else {
+        throw Exception('An error occurred during Google Sign-In: $e');
+      }
+    }
+  }
+
+  // Sign in with Facebook
+  Future<UserCredential?> signInWithFacebook() async {
+    try {
+      // Trigger the sign-in flow
+      final LoginResult result = await FacebookAuth.instance.login();
+
+      // Check if user completed the login
+      if (result.status == LoginStatus.success) {
+        final AccessToken accessToken = result.accessToken!;
+
+        // Create a credential from the access token
+        final OAuthCredential credential =
+            FacebookAuthProvider.credential(accessToken.tokenString);
+
+        // Sign in to Firebase with the Facebook credential
+        final UserCredential userCredential =
+            await _auth.signInWithCredential(credential);
+
+        // Check if new user -> create profile
+        if (userCredential.additionalUserInfo?.isNewUser ?? false) {
+          await _firestore
+              .collection('users')
+              .doc(userCredential.user!.uid)
+              .set({
+            'fullName': userCredential.user!.displayName ?? 'Facebook User',
+            'email': userCredential.user!.email ?? '',
+            'createdAt': FieldValue.serverTimestamp(),
+            'notificationsEnabled': true,
+            'photoUrl': userCredential.user!.photoURL,
+          });
+        }
+
+        return userCredential;
+      } else {
+        return null; // User cancelled or failed
+      }
+    } on FirebaseAuthException catch (e) {
+      throw _handleAuthError(e);
+    }
+  }
 
   @override
   Future<UserCredential> signUp({

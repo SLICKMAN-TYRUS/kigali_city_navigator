@@ -92,6 +92,46 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  // Sign in with Google
+  Future<bool> signInWithGoogle() async {
+    try {
+      _isLoading = true;
+      _error = null;
+      notifyListeners();
+
+      await (_authRepo as dynamic).signInWithGoogle();
+
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _error = e.toString();
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  // Sign in with Facebook
+  Future<bool> signInWithFacebook() async {
+    try {
+      _isLoading = true;
+      _error = null;
+      notifyListeners();
+
+      await _authRepo.signInWithFacebook();
+
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _error = e.toString();
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
   // Sign out
   Future<void> signOut() async {
     _setLoading(true);
